@@ -39,7 +39,12 @@ jobs:
       - name: Build DLL
         working-directory: ${{env.GITHUB_WORKSPACE}}
         run: |
-          env CGO_ENABLED=1 GOARCH=386 GOOS=windows go build -buildvcs=false -buildmode c-shared -ldflags="-s -w -extldflags=-static" -o .artifacts/twitch-integration.dll ./cmd/twitch-integration/
+          env CGO_ENABLED=1 \
+            GOARCH=386 \
+            GOOS=windows \
+            CC=i686-w64-mingw32-gcc \
+            CGO_CFLAGS="-m32 $CGO_CFLAGS" \
+            go build -buildvcs=false -buildmode c-shared -ldflags="-s -w -extldflags=-static" -o .artifacts/twitch-integration.dll ./cmd/twitch-integration/
 
       - name: Build Connector
         working-directory: ${{env.GITHUB_WORKSPACE}}
