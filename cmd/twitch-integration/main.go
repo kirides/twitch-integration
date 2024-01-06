@@ -21,9 +21,9 @@ const (
 )
 
 type chatCommand struct {
-	Action      string `json:"action"`
-	CooldownSec int32  `json:"cooldown_sec"`
-	Message     string `json:"message"`
+	Actions     []string `json:"actions"`
+	CooldownSec int32    `json:"cooldown_sec"`
+	Message     string   `json:"message"`
 }
 
 type config struct {
@@ -32,24 +32,28 @@ type config struct {
 	StreamElements streamElements `json:"streamElements"`
 }
 type twitch struct {
-	Rewards map[string]string      `json:"rewards"`
+	Rewards map[string][]string    `json:"rewards"`
 	Chat    map[string]chatCommand `json:"chat"`
 }
 type streamElements struct {
-	Perks map[string]string `json:"perks"`
+	Perks map[string][]string `json:"perks"`
 }
 
 func defaultConfig() config {
 	return config{
 		Debug: false,
 		StreamElements: streamElements{
-			Perks: make(map[string]string),
+			Perks: map[string][]string{
+				"Item1": {"TWI_XXX", "TWI_YYY"},
+			},
 		},
 		Twitch: twitch{
-			Rewards: make(map[string]string),
+			Rewards: map[string][]string{
+				"Item1": {"TWI_XXX", "TWI_YYY"},
+			},
 			Chat: map[string]chatCommand{
 				"#help": {
-					Action:      "XXXXXXXXXXXXXXXXXXXX",
+					Actions:     []string{"XXXXXXXXXXXXXXXXXXXX"},
 					Message:     "Dies hier wird im Chat angezeigt",
 					CooldownSec: 5,
 				},
@@ -111,8 +115,11 @@ func handleEventPipe(ctx context.Context, cnf config, logger *zap.Logger) error 
 				return fmt.Errorf("could not deserialize chat message event. %w", err)
 			}
 			if fn, ok := cnf.Twitch.Chat[chatMessage.Text]; ok {
-				logger.Info("Event accepted", zap.String("sender", chatMessage.Sender), zap.String("text", chatMessage.Text), zap.String("action", fn.Action))
-				enqueueEvent(fmt.Sprintf("CHAT %s %s", chatMessage.Sender, fn.Action))
+				logger.Info("Event accepted", zap.String("sender", chatMessage.Sender), zap.String("text", chatMessage.Text), zap.Strings("actions", fn.Actions))
+				for _, fn := range fn.Actions {
+					fn := strings.TrimSpace(fn)
+					enqueueEvent(fmt.Sprintf("CHAT %s %s", chatMessage.Sender, fn))
+				}
 			}
 		case "redemption":
 			type Redemption struct {
@@ -126,8 +133,11 @@ func handleEventPipe(ctx context.Context, cnf config, logger *zap.Logger) error 
 			}
 			logger.Debug("reward triggered", zap.String("redeemer", redeption.Redeemer), zap.String("reward", redeption.Title))
 			if fn, ok := cnf.Twitch.Rewards[strings.ToUpper(redeption.Title)]; ok {
-				logger.Info("handling reward", zap.String("redeemer", redeption.Redeemer), zap.String("reward", redeption.Title), zap.String("action", fn))
-				enqueueEvent(fmt.Sprintf("REWARD_ADD %s %s", redeption.Redeemer, fn))
+				logger.Info("handling reward", zap.String("redeemer", redeption.Redeemer), zap.String("reward", redeption.Title), zap.Strings("actions", fn))
+				for _, fn := range fn {
+					fn := strings.TrimSpace(fn)
+					enqueueEvent(fmt.Sprintf("REWARD_ADD %s %s", redeption.Redeemer, fn))
+				}
 			}
 		case "streamelements-perk":
 			type Redemption struct {
@@ -141,15 +151,18 @@ func handleEventPipe(ctx context.Context, cnf config, logger *zap.Logger) error 
 			}
 			logger.Debug("StreamElements perk triggered", zap.String("redeemer", redeption.Redeemer), zap.String("perk", redeption.Title))
 			if fn, ok := cnf.StreamElements.Perks[strings.ToUpper(redeption.Title)]; ok {
-				logger.Info("handling StreamElements perk", zap.String("redeemer", redeption.Redeemer), zap.String("perk", redeption.Title), zap.String("action", fn))
-				enqueueEvent(fmt.Sprintf("REWARD_ADD %s %s", redeption.Redeemer, fn))
+				logger.Info("handling StreamElements perk", zap.String("redeemer", redeption.Redeemer), zap.String("perk", redeption.Title), zap.Strings("actions", fn))
+				for _, fn := range fn {
+					fn := strings.TrimSpace(fn)
+					enqueueEvent(fmt.Sprintf("REWARD_ADD %s %s", redeption.Redeemer, fn))
+				}
 			}
 		}
 	}
 }
 
-func allKeysToUpper(m map[string]string) map[string]string {
-	copy := make(map[string]string, len(m))
+func allKeysToUpper(m map[string][]string) map[string][]string {
+	copy := make(map[string][]string, len(m))
 
 	for k, v := range m {
 		copy[strings.ToUpper(k)] = v
@@ -192,10 +205,10 @@ func readConfigJson() (config, error) {
 	}
 
 	if cnf.Twitch.Rewards == nil {
-		cnf.Twitch.Rewards = make(map[string]string)
+		cnf.Twitch.Rewards = make(map[string][]string)
 	}
 	if cnf.StreamElements.Perks == nil {
-		cnf.StreamElements.Perks = make(map[string]string)
+		cnf.StreamElements.Perks = make(map[string][]string)
 	}
 	cnf.Twitch.Rewards = allKeysToUpper(cnf.Twitch.Rewards)
 	cnf.StreamElements.Perks = allKeysToUpper(cnf.StreamElements.Perks)
