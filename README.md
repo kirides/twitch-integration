@@ -68,41 +68,41 @@ For the connector to work, you have to enter the neccessery credentials into the
 
 ```json
 {
-  "debug": false,
-  "streamElements": {
-    "perks": {
-      // A key-value pair of Perk and Action
-      // "Perk Name": "Game specific twitch integration action"
-      "Item": "TWI_SpawnItemRandom",
-      "Item1": "TWI_SpawnRandomItemNoArmorWeapons"
-    }
-  },
-  "twitch": {
-    "rewards": {
-      // A key-value pair of Reward and Action
-      // "Reward Name": "Game specific twitch integration action"
-      "Item": "TWI_InvertKeyControls",
-      "Item1": "TWI_SpawnRandomMonster 1"
-    },
-    "chat": {
-      // A collection of "chat-prefix" and associated data
-      // "chat-prefix": {...}
-      "#weak": {
-        // the Game specific twitch integration action 
-        "action": "TWI_Weakest_Weapon",
-        // the cooldown for the chat message
-        "cooldown_sec": 120,
-        // a message that will be sent after publishing the action
-        "message": ""
-      },
-      "#hp_1": {
-        "action": "TWI_SetHP 1",
-        "cooldown_sec": 120,
-        "message": ""
-      }
-    }
+	"debug": false,
+	"streamElements": {
+	  "perks": {
+		// A key-value pair of Perk and Actions
+		// "Perk Name": "Game specific twitch integration action"
+		"Item": ["TWI_SpawnItemRandom"],
+		"Item1": ["TWI_SpawnRandomItemNoArmorWeapons"]
+	  }
+	},
+	"twitch": {
+	  "rewards": {
+		// A key-value pair of Reward and Actions
+		// "Reward Name": "Game specific twitch integration action"
+		"Item": ["TWI_InvertKeyControls"],
+		"Item1": ["TWI_SpawnRandomMonster 1"]
+	  },
+	  "chat": {
+		// A collection of "chat-prefix" and associated data
+		// "chat-prefix": {...}
+		"#weak": {
+		  // the Game specific twitch integration actions 
+		  "actions": ["TWI_Weakest_Weapon"],
+		  // the cooldown for the chat message
+		  "cooldown_sec": 120,
+		  // a message that will be sent after publishing the action
+		  "message": ""
+		},
+		"#hp_1": {
+		  "actions": ["TWI_SetHP 1"],
+		  "cooldown_sec": 120,
+		  "message": ""
+		}
+	  }
+	}
   }
-}
 ```
 
 </details>
