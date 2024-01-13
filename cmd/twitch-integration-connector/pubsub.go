@@ -22,7 +22,7 @@ type Redemption struct {
 func handlePubSub(ctx context.Context, logger *slog.Logger, cnf twitchCnf, broker eventPublisher) {
 	logger = logger.With(logKeyCategory, "pubsub")
 
-	if !cnf.ChannelPointsIntegration {
+	if !(cnf.ChannelPointsIntegration || cnf.BitsIntegration) {
 		logger.Info("integration disabled by configuration.")
 		return
 	}
@@ -39,10 +39,35 @@ func handlePubSub(ctx context.Context, logger *slog.Logger, cnf twitchCnf, broke
 		return
 	}
 
-	found := slices.Contains(resp.Scopes, "channel:read:redemptions")
-	if !found {
-		logger.Error("OAuth token does not contain required scope(s)", slog.String("err", "scope not satisfied"), slog.String("scope", "channel:read:redemptions"))
-		return
+	subFns := []func(conn *pubsub.Connection){}
+
+	if cnf.ChannelPointsIntegration {
+		if found := slices.Contains(resp.Scopes, "channel:read:redemptions"); !found {
+			logger.Error("OAuth token does not contain required scope(s)", slog.String("err", "scope not satisfied"), slog.String("scope", "channel:read:redemptions"))
+			return
+		}
+		subFns = append(subFns, func(conn *pubsub.Connection) {
+			if err := conn.Sub(ctx, cnf.OAuthToken, pubsub.TopicChannelPoints); err != nil {
+				logger.Error("failed to subscribe to channelpoints topic.", slog.Any("err", err))
+			} else {
+				logger.Info("subscribed to channelpoints")
+			}
+		})
+	}
+
+	if cnf.BitsIntegration {
+		if found := slices.Contains(resp.Scopes, "bits:read"); !found {
+			logger.Error("OAuth token does not contain required scope(s)", slog.String("err", "scope not satisfied"), slog.String("scope", "bits:read"))
+			return
+		}
+
+		subFns = append(subFns, func(conn *pubsub.Connection) {
+			if err := conn.Sub(ctx, cnf.OAuthToken, pubsub.TopicBitsEvents); err != nil {
+				logger.Error("failed to subscribe to bits-events topic.", slog.Any("err", err))
+			} else {
+				logger.Info("subscribed to bits-events")
+			}
+		})
 	}
 
 	conn, err := pubsub.Connect(ctx, logger)
@@ -67,6 +92,10 @@ func handlePubSub(ctx context.Context, logger *slog.Logger, cnf twitchCnf, broke
 		broker.Publish(data)
 	}))
 
+	conn.OnEvent = func(e pubsub.Event) {
+		logger.Debug("EVENT RECEIVED", slog.String("type", e.Type), slog.String("data", string(e.Data)), slog.String("error", string(e.Error)))
+	}
+
 	go func() {
 		if err := conn.ProcessEvents(ctx); err != nil {
 			logger.Error("failed to process events.", slog.Any("err", err))
@@ -74,10 +103,9 @@ func handlePubSub(ctx context.Context, logger *slog.Logger, cnf twitchCnf, broke
 		}
 	}()
 
-	if err := conn.Sub(ctx, cnf.OAuthToken, pubsub.TopicChannelPoints); err != nil {
-		logger.Error("failed to subscribe to channelpoints topic.", slog.Any("err", err))
-	} else {
-		logger.Info("subscribed to channelpoints")
+	for _, v := range subFns {
+		v(conn)
 	}
+
 	<-ctx.Done()
 }

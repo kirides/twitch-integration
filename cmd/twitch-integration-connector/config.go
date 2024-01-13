@@ -16,6 +16,7 @@ type twitchCnf struct {
 	Channel                  string `json:"channel"`
 	OAuthToken               string `json:"oauth_token"`
 	ChannelPointsIntegration bool   `json:"channel_points"`
+	BitsIntegration          bool   `json:"bits"`
 	ChatIntegration          bool   `json:"chat"`
 	CommandPrefix            string `json:"command_prefix"`
 }
@@ -27,6 +28,7 @@ func defaultConfig() config {
 			CommandPrefix:            "#",
 			ChatIntegration:          true,
 			ChannelPointsIntegration: true,
+			BitsIntegration:          true,
 			Channel:                  "Channel name where commands will be sent",
 		},
 		StreamElements: streamElementsCnf{

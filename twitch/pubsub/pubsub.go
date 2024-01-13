@@ -198,6 +198,7 @@ type TopicType int
 const (
 	TopicChannelPoints TopicType = iota
 	TopicChannel
+	TopicBitsEvents
 )
 
 func (t TopicType) String() string {
@@ -223,6 +224,8 @@ func (c *Connection) Sub(ctx context.Context, oauthToken string, topicType Topic
 	switch {
 	case topicType == TopicChannelPoints && isScopeSupported("channel:read:redemptions", resp.Scopes):
 		topic = fmt.Sprintf("channel-points-channel-v1.%s", resp.UserID)
+	case topicType == TopicBitsEvents && isScopeSupported("bits:read", resp.Scopes):
+		topic = fmt.Sprintf("channel-bits-events-v2.%s", resp.UserID)
 	default:
 		return fmt.Errorf("topic not supported %q. Maybe missing scope in OAuth token", topicType)
 	}
