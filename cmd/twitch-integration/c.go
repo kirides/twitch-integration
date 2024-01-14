@@ -16,6 +16,8 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 var (
@@ -115,10 +117,39 @@ func (w *outputDebugStringAWriter) Write(data []byte) (int, error) {
 }
 
 type App struct {
-	logger *zap.Logger
+	logger    *zap.Logger
+	configMtx sync.Mutex
 }
 
 var app = &App{}
+
+func (a *App) ReplaceConfig(c config) {
+
+	a.configMtx.Lock()
+	defer a.configMtx.Unlock()
+
+	if activeCnf == nil {
+		return
+	}
+	*activeCnf = c
+}
+
+func (a *App) GetConfig() config {
+	a.configMtx.Lock()
+	defer a.configMtx.Unlock()
+	return *activeCnf
+}
+
+func loadConfig() error {
+	cnf, err := readConfigJson()
+	if err != nil {
+		return err
+	}
+
+	app.ReplaceConfig(cnf)
+
+	return nil
+}
 
 //export cInitIntegration
 func cInitIntegration() *C.char {
@@ -143,19 +174,30 @@ func cInitIntegration() *C.char {
 	app.logger = logger
 
 	enqueueEvent("INIT")
+
 	cnf, err := readConfigJson()
 	if err != nil {
 		return cError(err)
 	}
-	appCtx, appCtxCancel = context.WithCancel(context.Background())
 	activeCnf = &cnf
+
+	appCtx, appCtxCancel = context.WithCancel(context.Background())
 
 	go func() {
 		if logFile != nil {
 			defer logFile.Close()
 		}
+
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			logger.Warn("failed to setup fsnotify to support config hot-reloading")
+		} else {
+			defer watcher.Close()
+			watchForConfigChanges(appCtx, watcher, logger)
+		}
+
 		for {
-			if err := handleEventPipe(appCtx, cnf, logger); err != nil {
+			if err := handleEventPipe(appCtx, app, logger); err != nil {
 				logger.Error("failed to run", zap.Error(err))
 			}
 			<-time.After(time.Second * 5)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,7 +39,7 @@ type Connection struct {
 
 	tokensByChannel  map[string]OauthToken
 	pendingResponses map[string]requestHolder
-	handlers         map[string][]func(json.RawMessage)
+	handlers         map[MessageTopic][]func(json.RawMessage)
 
 	http         *http.Client
 	Logger       *slog.Logger
@@ -73,7 +74,7 @@ func Connect(ctx context.Context, logger *slog.Logger) (*Connection, error) {
 		reconnectTimer:   time.NewTimer(10 * time.Second),
 		messages:         make(chan Event, 1),
 		tokensByChannel:  make(map[string]OauthToken),
-		handlers:         make(map[string][]func(json.RawMessage)),
+		handlers:         make(map[MessageTopic][]func(json.RawMessage)),
 		pendingResponses: make(map[string]requestHolder),
 
 		http:         http.DefaultClient,
@@ -276,7 +277,14 @@ func H[T any](handler func(*T)) func(json.RawMessage) {
 	}
 }
 
-func (c *Connection) Handle(typ string, handler func(json.RawMessage)) {
+type MessageTopic string
+
+const (
+	TopicRewardRedeemed MessageTopic = "reward-redeemed"
+	TopicBitsEvent      MessageTopic = "bits_event"
+)
+
+func (c *Connection) Handle(typ MessageTopic, handler func(json.RawMessage)) {
 	existing := c.handlers[typ]
 	existing = append(existing, handler)
 	c.handlers[typ] = existing
@@ -328,15 +336,33 @@ func (c *Connection) ProcessEvents(ctx context.Context) error {
 					c.Logger.Warn("failed to unmarshal message", slog.Any("err", err))
 					continue
 				}
-				var msg Message
-				if err := json.Unmarshal([]byte(data.Message), &msg); err != nil {
-					c.Logger.Warn("failed to unmarshal message", slog.Any("err", err))
-					continue
-				}
 				if slices.Contains(c.topics, data.Topic) {
-					handlers := c.handlers[msg.Type]
+					var handlerPayload json.RawMessage
+					var handlerType string
+
+					switch {
+					case strings.HasPrefix(data.Topic, "channel-bits-events-v2."):
+						var msg bitsEvent
+						if err := json.Unmarshal([]byte(data.Message), &msg); err != nil {
+							c.Logger.Warn("failed to unmarshal message", slog.Any("err", err))
+							continue
+						}
+						handlerType = msg.MessageType
+						handlerPayload = msg.Data
+					// case strings.HasPrefix(data.Topic, "channel-points-channel-v1."):
+					default:
+						var msg Message
+						if err := json.Unmarshal([]byte(data.Message), &msg); err != nil {
+							c.Logger.Warn("failed to unmarshal message", slog.Any("err", err))
+							continue
+						}
+						handlerType = msg.Type
+						handlerPayload = msg.Data
+					}
+
+					handlers := c.handlers[MessageTopic(handlerType)]
 					for _, v := range handlers {
-						v(msg.Data)
+						v(handlerPayload)
 					}
 				}
 			}
@@ -354,4 +380,11 @@ type eventData struct {
 type Message struct {
 	Type string          `json:"type"`
 	Data json.RawMessage `json:"data"`
+}
+
+type bitsEvent struct {
+	Data        json.RawMessage `json:"data"`
+	Version     string          `json:"version"`
+	MessageType string          `json:"message_type"`
+	MessageID   string          `json:"message_id"`
 }

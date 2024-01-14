@@ -45,3 +45,17 @@ type RewardRedeemed struct {
 		Status    string `json:"status"`
 	} `json:"redemption"`
 }
+
+type BitsEvent struct {
+	UserName         string    `json:"user_name"`
+	ChannelName      string    `json:"channel_name"`
+	UserID           string    `json:"user_id"`
+	ChannelID        string    `json:"channel_id"`
+	Time             time.Time `json:"time"`
+	ChatMessage      string    `json:"chat_message"`
+	BitsUsed         int       `json:"bits_used"`
+	TotalBitsUsed    int       `json:"total_bits_used"`
+	IsAnonymous      bool      `json:"is_anonymous"`
+	Context          string    `json:"context"`
+	BadgeEntitlement any       `json:"badge_entitlement"`
+}

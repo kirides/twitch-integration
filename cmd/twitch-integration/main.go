@@ -1,66 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/Microsoft/go-winio"
 	"go.uber.org/zap"
 )
-
-const (
-	configFileName = "twitch-integration.json"
-)
-
-type chatCommand struct {
-	Actions     []string `json:"actions"`
-	CooldownSec int32    `json:"cooldown_sec"`
-	Message     string   `json:"message"`
-}
-
-type config struct {
-	Debug          bool           `json:"debug"`
-	Twitch         twitch         `json:"twitch"`
-	StreamElements streamElements `json:"streamElements"`
-}
-type twitch struct {
-	Rewards map[string][]string    `json:"rewards"`
-	Chat    map[string]chatCommand `json:"chat"`
-}
-type streamElements struct {
-	Perks map[string][]string `json:"perks"`
-}
-
-func defaultConfig() config {
-	return config{
-		Debug: false,
-		StreamElements: streamElements{
-			Perks: map[string][]string{
-				"Item1": {"TWI_XXX", "TWI_YYY"},
-			},
-		},
-		Twitch: twitch{
-			Rewards: map[string][]string{
-				"Item1": {"TWI_XXX", "TWI_YYY"},
-			},
-			Chat: map[string]chatCommand{
-				"#help": {
-					Actions:     []string{"XXXXXXXXXXXXXXXXXXXX"},
-					Message:     "Dies hier wird im Chat angezeigt",
-					CooldownSec: 5,
-				},
-			},
-		},
-	}
-}
 
 func main() {
 	// DLL
@@ -70,7 +21,7 @@ func main() {
 	// handleEventPipe(ctx, cnf, log.Default())
 }
 
-func handleEventPipe(ctx context.Context, cnf config, logger *zap.Logger) error {
+func handleEventPipe(ctx context.Context, app *App, logger *zap.Logger) error {
 	conn, err := winio.DialPipeAccess(ctx, `\\.\pipe\__TwitchIntegration_Kirides_Conn`, syscall.GENERIC_READ)
 	if err != nil {
 		return err
@@ -103,6 +54,7 @@ func handleEventPipe(ctx context.Context, cnf config, logger *zap.Logger) error 
 			return fmt.Errorf("could not deserialize message. %w", err)
 		}
 
+		cnf := app.GetConfig()
 		switch event.Type {
 		case "chat":
 			type ChatMessage struct {
@@ -139,6 +91,24 @@ func handleEventPipe(ctx context.Context, cnf config, logger *zap.Logger) error 
 					enqueueEvent(fmt.Sprintf("REWARD_ADD %s %s", redeption.Redeemer, fn))
 				}
 			}
+		case "bits":
+			type BitsEvent struct {
+				BitsUsed int    `json:"bitsUsed"`
+				User     string `json:"user"`
+				Channel  string `json:"channel"`
+			}
+			var redeption BitsEvent
+			if err := json.Unmarshal(event.Data, &redeption); err != nil {
+				return fmt.Errorf("could not deserialize redeption event. %w", err)
+			}
+			logger.Debug("bits triggered", zap.String("bits_user", redeption.User), zap.Int("bits", redeption.BitsUsed))
+			if fn, ok := cnf.Twitch.Bits[redeption.BitsUsed]; ok {
+				logger.Info("handling bits", zap.String("bits_user", redeption.User), zap.Int("bits", redeption.BitsUsed), zap.Strings("actions", fn))
+				for _, fn := range fn {
+					fn := strings.TrimSpace(fn)
+					enqueueEvent(fmt.Sprintf("BITS_USED %s %s", redeption.User, fn))
+				}
+			}
 		case "streamelements-perk":
 			type Redemption struct {
 				Title    string `json:"title"`
@@ -159,62 +129,4 @@ func handleEventPipe(ctx context.Context, cnf config, logger *zap.Logger) error 
 			}
 		}
 	}
-}
-
-func allKeysToUpper(m map[string][]string) map[string][]string {
-	copy := make(map[string][]string, len(m))
-
-	for k, v := range m {
-		copy[strings.ToUpper(k)] = v
-	}
-	return copy
-}
-
-func prettyJson(data any) ([]byte, error) {
-	buf := bytes.NewBuffer(nil)
-	enc := json.NewEncoder(buf)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	err := enc.Encode(data)
-	return buf.Bytes(), err
-}
-
-func readConfigJson() (config, error) {
-	cnf := defaultConfig()
-	execPath, err := os.Executable()
-	if err != nil {
-		app.logger.Error("failed to locate current executable", zap.Error(err))
-		return cnf, err
-	}
-
-	configContent, err := os.ReadFile(filepath.Join(filepath.Dir(execPath), configFileName))
-	if err != nil {
-		if os.IsNotExist(err) {
-			def, err := prettyJson(cnf)
-			if err != nil {
-				app.logger.Error("failed to marshal default config", zap.Error(err))
-				return cnf, err
-			}
-			os.WriteFile(filepath.Join(filepath.Dir(execPath), configFileName), def, 0640)
-		}
-	} else {
-		if err := json.Unmarshal(configContent, &cnf); err != nil {
-			app.logger.Error("failed to unmarshal config", zap.Error(err))
-			return cnf, err
-		}
-	}
-
-	if cnf.Twitch.Rewards == nil {
-		cnf.Twitch.Rewards = make(map[string][]string)
-	}
-	if cnf.StreamElements.Perks == nil {
-		cnf.StreamElements.Perks = make(map[string][]string)
-	}
-	cnf.Twitch.Rewards = allKeysToUpper(cnf.Twitch.Rewards)
-	cnf.StreamElements.Perks = allKeysToUpper(cnf.StreamElements.Perks)
-
-	if cnf.Twitch.Chat == nil {
-		cnf.Twitch.Chat = make(map[string]chatCommand)
-	}
-	return cnf, nil
 }
