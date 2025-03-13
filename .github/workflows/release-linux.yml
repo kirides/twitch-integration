@@ -40,7 +40,7 @@ jobs:
           env CGO_ENABLED=1 \
             GOARCH=386 \
             GOOS=windows \
-            CC="zig.exe cc -target x86-windows-gnu -march=baseline" \
+            CC="zig cc -target x86-windows-gnu -march=baseline" \
             go build -buildvcs=false -buildmode c-shared -ldflags="-s -w -extldflags=-static" -o .artifacts/twitch-integration.dll ./cmd/twitch-integration/
 
       - name: Build Connector
