@@ -1,9 +1,10 @@
 module github.com/kirides/twitch-integration
 
-go 1.21
+go 1.24
 
 require (
 	github.com/Microsoft/go-winio v0.6.1
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/uuid v1.3.0
 	github.com/kirides/socketio-client v0.0.0-20211031175023-d85153e8f78b
 	github.com/stretchr/testify v1.8.2
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 )
