@@ -18,6 +18,6 @@ docker exec $container \
 echo "Building connector application"
 docker exec $container \
     /bin/sh -c 'cd /src && \
-        env CGO_ENABLED=1 GOARCH=386 GOOS=windows /usr/local/go/bin/go build -buildvcs=false -ldflags="-s -w" ./cmd/twitch-integration-connector/'
+        env CGO_ENABLED=0 GOARCH=386 GOOS=windows /usr/local/go/bin/go build -buildvcs=false -ldflags="-s -w" ./cmd/twitch-integration-connector/'
 
 docker rm -f $container
