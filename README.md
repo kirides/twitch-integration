@@ -14,9 +14,10 @@ or any other kind of malfunction while communicating with a third party service.
 
 The easy way to build the sources comprises of having a linux [docker](https://www.docker.com/) runtime accessible and
 using the [build.sh](./build/docker/build.sh) file provided to setup a cross-compilation environment.
+_This uses Mingw to cross compile_
 
-The hard/manual way, on Windows, is to install Go 1.21.x and setup a msys2 environment.
-Install `i686-w64-mingw32-gcc` and use [build-twitch-integration.bat](./build/windows/build-twitch-integration.bat)
+The manual way, on Windows, is to install Go 1.24.x and [Zig](https://ziglang.org/)
+then use [build-twitch-integration-zig.bat](./build/windows/build-twitch-integration-zig.bat)
 
 ## Using the twitch integration
 
