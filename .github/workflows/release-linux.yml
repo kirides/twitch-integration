@@ -23,12 +23,10 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Set up MinGW
-        # uses: egor-tensin/setup-mingw@v2
-        # uses: egor-tensin/setup-mingw@2.2.0
-        uses: egor-tensin/setup-mingw@84c781b557efd538dec66bde06988d81cd3138cf
+      - name: Set up Zig for Cross compilation
+        uses: mlugg/setup-zig@v1
         with:
-          platform: x86
+          version: 0.14.0
 
       - name: Set tag and directory name env
         run: |
@@ -42,14 +40,13 @@ jobs:
           env CGO_ENABLED=1 \
             GOARCH=386 \
             GOOS=windows \
-            CC=i686-w64-mingw32-gcc \
-            CGO_CFLAGS="-m32 $CGO_CFLAGS" \
+            CC="zig.exe cc -target x86-windows-gnu -march=baseline" \
             go build -buildvcs=false -buildmode c-shared -ldflags="-s -w -extldflags=-static" -o .artifacts/twitch-integration.dll ./cmd/twitch-integration/
 
       - name: Build Connector
         working-directory: ${{env.GITHUB_WORKSPACE}}
         run: |
-          env CGO_ENABLED=1 GOARCH=386 GOOS=windows go build -buildvcs=false -ldflags="-s -w" -o .artifacts/twitch-integration-connector.exe ./cmd/twitch-integration-connector/
+          env CGO_ENABLED=0 GOARCH=386 GOOS=windows go build -buildvcs=false -ldflags="-s -w" -o .artifacts/twitch-integration-connector.exe ./cmd/twitch-integration-connector/
 
       - name: Calculate distribution hash
         working-directory: ${{env.GITHUB_WORKSPACE}}
