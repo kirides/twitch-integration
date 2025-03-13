@@ -13,9 +13,9 @@ import (
 
 	"slices"
 
+	"github.com/coder/websocket"
 	"github.com/kirides/twitch-integration/twitch"
 	"golang.org/x/time/rate"
-	"nhooyr.io/websocket"
 )
 
 var ErrRateExceeded = errors.New("ratelimit exceeded")

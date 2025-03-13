@@ -15,9 +15,9 @@ import (
 
 	"slices"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/kirides/twitch-integration/twitch"
-	"nhooyr.io/websocket"
 )
 
 type request struct {
