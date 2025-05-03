@@ -219,7 +219,7 @@ func (m *WebhookManager) DeleteSubscription(id string) error {
 	return nil
 }
 
-func (m *WebhookManager) Subscribe(info SubscriptionInfo) error {
+func (m *WebhookManager) Subscribe(info eventsub.SubscriptionInfo) error {
 	data, err := json.Marshal(info)
 	if err != nil {
 		return err
@@ -246,7 +246,7 @@ func (m *WebhookManager) Subscribe(info SubscriptionInfo) error {
 	if err != nil {
 		return err
 	}
-	var respData SubscriptionResponse
+	var respData eventsub.SubscriptionResponse
 	if err := json.Unmarshal(respBody, &respData); err != nil {
 		return err
 	}

@@ -97,7 +97,7 @@ func main() {
 		}
 	})
 	services.Add("twitch pubsub", func(ctx context.Context) {
-		handlePubSub(ctx, logger, cnf.Twitch, broker)
+		handleEventSub(ctx, logger, cnf.Twitch, broker)
 	})
 	<-appCtx.Done()
 	logger.Info("Shutting down")

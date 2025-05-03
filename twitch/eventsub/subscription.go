@@ -9,15 +9,29 @@ const (
 	SubChannelFollow                                    = "channel.follow"
 	SubChannelChannelPointsCustomRewardRedemptionAdd    = "channel.channel_points_custom_reward_redemption.add"
 	SubChannelChannelPointsCustomRewardRedemptionUpdate = "channel.channel_points_custom_reward_redemption.update"
+	SubChannelCheer                                     = "channel.cheer"
 )
+
+var eventVersions = map[string]string{
+	SubChannelChannelPointsCustomRewardRedemptionAdd:    "1",
+	SubChannelChannelPointsCustomRewardRedemptionUpdate: "1",
+	SubChannelCheer:  "1",
+	SubChannelFollow: "1",
+}
 
 type Handler struct {
 	OnChannelFollow                                    func(ChannelFollow)
 	OnChannelChannelPointsCustomRewardRedemptionAdd    func(RewardAdd)
 	OnChannelChannelPointsCustomRewardRedemptionUpdate func(RewardUpdate)
+	OnChannelCheer                                     func(ChannelCheer)
 	OnAny                                              func(AnonymousNotification)
 }
 
+func (h *Handler) onAny(typed AnonymousNotification) {
+	if h.OnAny != nil {
+		h.OnAny(typed)
+	}
+}
 func (h *Handler) Delegate(subType string, data []byte) {
 	switch subType {
 	case SubChannelFollow:
@@ -47,7 +61,23 @@ func (h *Handler) Delegate(subType string, data []byte) {
 		if h.OnChannelChannelPointsCustomRewardRedemptionUpdate != nil {
 			h.OnChannelChannelPointsCustomRewardRedemptionUpdate(typed.Event)
 		}
+	case SubChannelCheer:
+		var typed ChannelCheerNotification
+		if err := json.Unmarshal(data, &typed); err != nil {
+			fmt.Printf("failed to handle %s\n", subType)
+			return
+		}
+		if h.OnChannelCheer != nil {
+			h.OnChannelCheer(typed.Event)
+		}
+
 	default:
 		fmt.Printf("unhandled: %s\n", subType)
+		var typed AnonymousNotification
+		if err := json.Unmarshal(data, &typed); err != nil {
+			fmt.Printf("failed to handle %s\n", subType)
+			return
+		}
+		h.onAny(typed)
 	}
 }

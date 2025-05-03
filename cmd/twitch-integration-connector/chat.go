@@ -28,7 +28,7 @@ func handleChat(ctx context.Context, cnf twitchCnf, logger *slog.Logger, ew even
 		return nil
 	}
 
-	if cnf.OAuthToken == "" {
+	if cnf.OAuthToken == "" || strings.Contains(cnf.OAuthToken, "id.twitch.tv") {
 		logger.Info("No credentials. Integration disabled.")
 		return nil
 	}

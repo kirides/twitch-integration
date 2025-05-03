@@ -18,5 +18,5 @@ func QueryUsersURL(values url.Values) string {
 }
 
 func QuerySubscriptionsURL(values url.Values) string {
-	return "https://api.twitch.tv/helix/eventsub/subscriptions?" + values.Encode()
+	return EventSubSubscriptionsURL + "?" + values.Encode()
 }
