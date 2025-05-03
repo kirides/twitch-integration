@@ -34,7 +34,6 @@ type WebsocketConnection struct {
 	userToken    string
 	wg           sync.WaitGroup
 	cancelReadFn func()
-	runCtx       context.Context
 	readCtx      context.Context
 	keepaliveCh  chan time.Time
 
@@ -73,22 +72,59 @@ func NewWebsocket(
 		httpClient:  http.DefaultClient,
 		HTTPHeader:  make(http.Header),
 		keepaliveCh: make(chan time.Time),
-		runCtx:      context.Background(),
 		readCtx:     context.Background(),
 	}
 	return conn, nil
 }
 
 func (c *WebsocketConnection) RunContext(ctx context.Context) error {
-	c.runCtx = ctx
-	c.Close()
-
 	if err := c.reconnect(ctx, endpoint); err != nil {
 		return err
 	}
 	c.readCtx, c.cancelReadFn = context.WithCancel(ctx)
 
-	c.run(c.readCtx)
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for ctx.Done() == nil {
+			select {
+			case <-c.keepaliveCh:
+				// OK
+				ticker.Reset(time.Minute)
+			case <-ticker.C:
+				if err := c.reconnect(ctx, endpoint); err != nil {
+					c.logger.Error("Failed to connect to twitch.", slog.String("reconnect_url", endpoint), slog.Any("err", err))
+					return
+				}
+				if err := c.doSubscribe(ctx); err != nil {
+					c.logger.Error("Failed to subscribe to events",
+						slog.Any("err", err),
+					)
+					return
+				}
+			}
+		}
+	}()
+
+	retry := 1
+	for err := c.run(c.readCtx); err != nil; err = c.run(c.readCtx) {
+		if ctx.Err() != nil {
+			return nil
+		}
+		delay := time.Second * 10
+		c.logger.Info("Error processing events",
+			slog.Int("retry.count", retry),
+			slog.Duration("retry.after", delay),
+		)
+		retry++
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(delay):
+		}
+
+	}
 
 	return nil
 }
@@ -138,47 +174,13 @@ func (c *WebsocketConnection) doSubscribe(ctx context.Context) error {
 }
 
 func (c *WebsocketConnection) run(ctx context.Context) error {
-	defer c.Close()
-
-	retry := true
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-
-		for ctx.Done() == nil {
-			select {
-			case <-c.keepaliveCh:
-				// OK
-				ticker.Reset(time.Minute)
-			case <-ticker.C:
-				if err := c.reconnect(c.runCtx, endpoint); err != nil {
-					c.logger.Error("Failed to connect to twitch.", slog.String("reconnect_url", endpoint), slog.Any("err", err))
-					retry = false
-					return
-				}
-				if err := c.doSubscribe(c.runCtx); err != nil {
-					c.logger.Error("Failed to subscribe to events",
-						slog.Any("err", err),
-					)
-					retry = false
-					return
-				}
-			}
-		}
-	}()
-
 	for ctx.Err() == nil {
 		t, d, err := c.conn.Read(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
-			c.logger.Error("Failed to read message", slog.Any("err", err))
-			if retry {
-				c.logger.Debug("retry later")
-				continue
-			}
-			return err
+			return fmt.Errorf("failed to read message. %w", err)
 		}
 		if t != websocket.MessageText {
 			c.logger.Warn("Unsupported messagetype", slog.String("messageType", t.String()))
@@ -211,8 +213,9 @@ func (c *WebsocketConnection) run(ctx context.Context) error {
 				return err
 			}
 		case "session_keepalive":
-			c.lastKeepalive = time.Now()
 			c.logger.Debug("Keepalive received")
+			c.lastKeepalive = time.Now()
+			c.keepaliveCh <- c.lastKeepalive
 		case "session_reconnect":
 			var evt EventReconnect
 			if err := json.Unmarshal(msg.Payload, &evt); err != nil {
