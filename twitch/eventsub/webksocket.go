@@ -17,8 +17,6 @@ import (
 	"github.com/kirides/twitch-integration/twitch"
 )
 
-const endpoint = "wss://eventsub.wss.twitch.tv/ws"
-
 type WebsocketConnection struct {
 	handler       Handler
 	conn          *websocket.Conn
@@ -78,7 +76,7 @@ func NewWebsocket(
 }
 
 func (c *WebsocketConnection) RunContext(ctx context.Context) error {
-	if err := c.reconnect(ctx, endpoint); err != nil {
+	if err := c.reconnect(ctx, twitch.EventSubURL); err != nil {
 		return err
 	}
 	c.readCtx, c.cancelReadFn = context.WithCancel(ctx)
@@ -93,8 +91,8 @@ func (c *WebsocketConnection) RunContext(ctx context.Context) error {
 				// OK
 				ticker.Reset(time.Minute)
 			case <-ticker.C:
-				if err := c.reconnect(ctx, endpoint); err != nil {
-					c.logger.Error("Failed to connect to twitch.", slog.String("reconnect_url", endpoint), slog.Any("err", err))
+				if err := c.reconnect(ctx, twitch.EventSubURL); err != nil {
+					c.logger.Error("Failed to connect to twitch.", slog.String("reconnect_url", twitch.EventSubURL), slog.Any("err", err))
 					return
 				}
 				if err := c.doSubscribe(ctx); err != nil {
@@ -167,7 +165,8 @@ func (c *WebsocketConnection) doSubscribe(ctx context.Context) error {
 				SessionID: c.session.ID,
 			},
 		}); err != nil {
-			return fmt.Errorf("failed to subscribe to %q. %w", k, err)
+			c.logger.ErrorContext(ctx, "failed to subscribe", slog.String("type", k), slog.Any("err", err))
+			// return fmt.Errorf("failed to subscribe to %q. %w", k, err)
 		}
 	}
 	return nil
@@ -191,6 +190,7 @@ func (c *WebsocketConnection) run(ctx context.Context) error {
 			c.logger.Warn("could not unmarshal message", slog.Any("err", err))
 			continue
 		}
+		c.logger.DebugContext(ctx, "event received", slog.String("messageType", msg.Metadata.MessageType), slog.String("raw", string(d)))
 		switch msg.Metadata.MessageType {
 		case "session_welcome":
 			var evt EventSubWelcome
@@ -238,7 +238,7 @@ func (c *WebsocketConnection) run(ctx context.Context) error {
 				c.logger.Warn("could not unmarshal payload", slog.Any("err", err))
 				continue
 			}
-			c.handler.Delegate(evt.Subscription.Type, d)
+			c.handler.Delegate(evt.Subscription.Type, msg.Payload)
 		}
 	}
 	return nil
@@ -301,7 +301,7 @@ func (c *WebsocketConnection) Subscribe(ctx context.Context, info SubscriptionIn
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		data, err := io.ReadAll(resp.Body)
 		responseText := ""
-		if err != nil {
+		if err == nil {
 			responseText = string(data)
 		}
 		return fmt.Errorf("response error: %s (%d): %s", resp.Status, resp.StatusCode, responseText)
