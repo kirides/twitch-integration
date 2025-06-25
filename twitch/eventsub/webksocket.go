@@ -85,12 +85,15 @@ func (c *WebsocketConnection) RunContext(ctx context.Context) error {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 
-		for ctx.Done() == nil {
+		for {
 			select {
+			case <-ctx.Done():
+				return
 			case <-c.keepaliveCh:
 				// OK
 				ticker.Reset(time.Minute)
 			case <-ticker.C:
+				c.logger.InfoContext(ctx, "reconnect", slog.String("reason", "keepalive_missing"))
 				if err := c.reconnect(ctx, twitch.EventSubURL); err != nil {
 					c.logger.Error("Failed to connect to twitch.", slog.String("reconnect_url", twitch.EventSubURL), slog.Any("err", err))
 					return
