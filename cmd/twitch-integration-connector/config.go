@@ -1,5 +1,7 @@
 package main
 
+import "github.com/kirides/twitch-integration/twitch"
+
 type config struct {
 	Debug          bool              `json:"debug"`
 	Twitch         twitchCnf         `json:"twitch"`
@@ -19,6 +21,7 @@ type twitchCnf struct {
 	BitsIntegration          bool   `json:"bits"`
 	ChatIntegration          bool   `json:"chat"`
 	CommandPrefix            string `json:"command_prefix"`
+	EventSubURL              string `json:"eventsub_url"`
 }
 
 func defaultConfig() config {
@@ -30,6 +33,7 @@ func defaultConfig() config {
 			ChannelPointsIntegration: true,
 			BitsIntegration:          true,
 			Channel:                  "Channel name where commands will be sent",
+			EventSubURL:              twitch.EventSubURL,
 		},
 		StreamElements: streamElementsCnf{
 			Enabled: false,

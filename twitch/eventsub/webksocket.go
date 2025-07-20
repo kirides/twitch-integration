@@ -35,6 +35,8 @@ type WebsocketConnection struct {
 	readCtx      context.Context
 	keepaliveCh  chan time.Time
 
+	EventSubURL string
+
 	session struct {
 		ID string
 	}
@@ -76,7 +78,11 @@ func NewWebsocket(
 }
 
 func (c *WebsocketConnection) RunContext(ctx context.Context) error {
-	if err := c.reconnect(ctx, twitch.EventSubURL); err != nil {
+	url := c.EventSubURL
+	if url == "" {
+		url = twitch.EventSubURL
+	}
+	if err := c.reconnect(ctx, url); err != nil {
 		return err
 	}
 	c.readCtx, c.cancelReadFn = context.WithCancel(ctx)
@@ -94,8 +100,8 @@ func (c *WebsocketConnection) RunContext(ctx context.Context) error {
 				ticker.Reset(time.Minute)
 			case <-ticker.C:
 				c.logger.InfoContext(ctx, "reconnect", slog.String("reason", "keepalive_missing"))
-				if err := c.reconnect(ctx, twitch.EventSubURL); err != nil {
-					c.logger.Error("Failed to connect to twitch.", slog.String("reconnect_url", twitch.EventSubURL), slog.Any("err", err))
+				if err := c.reconnect(ctx, url); err != nil {
+					c.logger.Error("Failed to connect to twitch.", slog.String("reconnect_url", url), slog.Any("err", err))
 					return
 				}
 				if err := c.doSubscribe(ctx); err != nil {
