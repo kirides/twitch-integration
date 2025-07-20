@@ -130,6 +130,7 @@ func handleEventSub(ctx context.Context, logger *slog.Logger, cnf twitchCnf, bro
 		logger.Error("failed to connect to twitch eventsub.", slog.Any("err", err))
 		return
 	}
+	conn.EventSubURL = cnf.EventSubURL
 
 	defer conn.Close()
 
