@@ -1,5 +1,18 @@
 package main
 
+/*
+	Testing the Eventsub:
+
+	1. Download twitch developer CLI from here https://github.com/twitchdev/twitch-cli/releases/latest get the one that fits your system, e.g. xxxxx_Windows_x86_64.zip for x64 bit windows.
+	2. Open a terminal window in the same directory as `twitch.exe`
+	3. Launch the dummy server `./twitch.exe event websocket start-server`
+	4. Run twitch-integration-connector so the configuration is created/updated.
+	5. End with CTRL+C
+	6. Adjust `twitch-integration-connector.json` to point to dummy websocket server from 3.: `"eventsub_url": "ws://127.0.0.1:8080/ws"` and start it again.
+	7. Open a NEW terminal window in the same directory as `twitch.exe`
+	8. Send some event to the application: `./twitch.exe event trigger --item-name "reward 523523" --transport=websocket channel.channel_points_custom_reward_redemption.add`
+*/
+
 import (
 	"context"
 	"encoding/json"
