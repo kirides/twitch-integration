@@ -79,10 +79,30 @@ func handleEventSub(ctx context.Context, logger *slog.Logger, cnf twitchCnf, bro
 		},
 		OnChannelCheer: func(rr eventsub.ChannelCheer) {
 
-			logger.Info("Bits used", slog.Any("BitsEvent", rr))
+			logger.Info("ChannelCheer", slog.Any("BitsEvent", rr))
 			username := "anonymous"
-			if !rr.IsAnonymous && rr.UserName != nil {
-				username = *rr.UserName
+			if !rr.IsAnonymous && rr.UserName.Valid && rr.UserName.Value != "" {
+				username = rr.UserName.Value
+			}
+
+			userWithoutSpaces := username
+			userWithoutSpaces = strings.Replace(userWithoutSpaces, " ", "", -1)
+
+			data, err := json.Marshal(EventEnvelop{Type: "bits", Data: BitsEvent{BitsUsed: int(rr.Bits), User: userWithoutSpaces, Channel: rr.BroadcasterUserLogin}})
+			if err != nil {
+				logger.Error("could not serialize bits", slog.Any("err", err), slog.String("user", username))
+				return
+			}
+			logger.Debug("Reward redeemed", slog.String("user", username), slog.Int64("bits", rr.Bits))
+			broker.Publish(data)
+		},
+		OnChannelBitsUse: func(rr eventsub.ChannelBitsUse) {
+			logger.Info("ChannelBitsUse", slog.Any("BitsEvent", rr))
+			username := "anonymous"
+			if rr.UserName != "" {
+				username = rr.UserName
+			} else if rr.UserLogin != "" {
+				username = rr.UserLogin
 			}
 
 			userWithoutSpaces := username
@@ -116,6 +136,12 @@ func handleEventSub(ctx context.Context, logger *slog.Logger, cnf twitchCnf, bro
 			return
 		}
 
+		// do not raise twice, TODO: replace channel.cheer with channel.bits.use once it's testable
+		// subFns = append(subFns, func(subscriptions map[string]eventsub.Condition) {
+		// 	subscriptions[eventsub.SubChannelBitsUse] = eventsub.Condition{
+		// 		BroadcasterUserID: resp.UserID,
+		// 	}
+		// })
 		subFns = append(subFns, func(subscriptions map[string]eventsub.Condition) {
 			subscriptions[eventsub.SubChannelCheer] = eventsub.Condition{
 				BroadcasterUserID: resp.UserID,
@@ -132,7 +158,7 @@ func handleEventSub(ctx context.Context, logger *slog.Logger, cnf twitchCnf, bro
 		resp.ClientID,
 		logger,
 		cnf.OAuthToken,
-		*evHandler,
+		evHandler,
 		func(m map[string]eventsub.Condition) {
 			for _, v := range subFns {
 				v(m)

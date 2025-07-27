@@ -1,6 +1,7 @@
 package eventsub
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -46,7 +47,10 @@ type ChannelCheerNotification struct {
 	Subscription Subscription `json:"subscription"`
 	Event        ChannelCheer `json:"event"`
 }
-
+type ChannelBitsUseNotification struct {
+	Subscription Subscription   `json:"subscription"`
+	Event        ChannelBitsUse `json:"event"`
+}
 type Condition struct {
 	BroadcasterUserID     string `json:"broadcaster_user_id,omitempty"`
 	ModeratorUserId       string `json:"moderator_user_id,omitempty"`
@@ -137,15 +141,32 @@ type RewardAdd struct {
 
 type ChannelCheer struct {
 	// when true UserId, UserLogin and UserName are nil
-	IsAnonymous          bool    `json:"is_anonymous"`
-	UserID               *string `json:"user_id"`
-	UserLogin            *string `json:"user_login"`
-	UserName             *string `json:"user_name"`
-	BroadcasterUserID    string  `json:"broadcaster_user_id"`
-	BroadcasterUserLogin string  `json:"broadcaster_user_login"`
-	BroadcasterUserName  string  `json:"broadcaster_user_name"`
-	Message              string  `json:"message"`
-	Bits                 int64   `json:"bits"`
+	IsAnonymous          bool             `json:"is_anonymous"`
+	UserID               Optional[string] `json:"user_id"`
+	UserLogin            Optional[string] `json:"user_login"`
+	UserName             Optional[string] `json:"user_name"`
+	BroadcasterUserID    string           `json:"broadcaster_user_id"`
+	BroadcasterUserLogin string           `json:"broadcaster_user_login"`
+	BroadcasterUserName  string           `json:"broadcaster_user_name"`
+	Message              string           `json:"message"`
+	Bits                 int64            `json:"bits"`
+}
+
+type ChannelBitsUse struct {
+	// when true UserId, UserLogin and UserName are nil
+	UserID               string `json:"user_id"`
+	UserLogin            string `json:"user_login"`
+	UserName             string `json:"user_name"`
+	BroadcasterUserID    string `json:"broadcaster_user_id"`
+	BroadcasterUserLogin string `json:"broadcaster_user_login"`
+	BroadcasterUserName  string `json:"broadcaster_user_name"`
+	Bits                 int64  `json:"bits"`
+	// cheer, power_up
+	Type string `json:"type"`
+	// Optional ChatMessage
+	Message json.RawMessage `json:"message"`
+	// Optional PowerUp
+	PowerUp json.RawMessage `json:"power_up"`
 }
 
 type EventSubWelcome struct {
@@ -166,4 +187,81 @@ type EventReconnect struct {
 		ReconnectURL            string    `json:"reconnect_url"`
 		ConnectedAt             time.Time `json:"connected_at"`
 	} `json:"session"`
+}
+
+type ChatMessage struct {
+	Text      string         `json:"text"`
+	Fragments []ChatFragment `json:"fragments"`
+}
+
+type ChatFragment struct {
+	Text string `json:"text"`
+	// text, cheermote, emote
+	Type      string                  `json:"type"`
+	Emote     Optional[ChatEmote]     `json:"emote"`
+	Cheermote Optional[ChatCheermote] `json:"cheermote"`
+}
+
+type ChatEmote struct {
+	Id         string `json:"id"`
+	EmoteSetId string `json:"emote_set_id"`
+	OwnerId    string `json:"owner_id"`
+	// `animated` (gif), `static` (png)`
+	Format []string `json:"format"`
+}
+
+type ChatCheermote struct {
+	Prefix string `json:"prefix"`
+	Bits   int64  `json:"bits"`
+	Tier   int64  `json:"tier"`
+}
+
+type PowerUp struct {
+	Type            string                 `json:"type"`
+	Emote           Optional[PowerUpEmote] `json:"emote"`
+	MessageEffectId string                 `json:"message_effect_id"`
+}
+
+type PowerUpEmote struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type Optional[T any] struct {
+	Set   bool
+	Valid bool
+	Value T
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// Only Value is marshaled, and only if Valid is true.
+func (s Optional[T]) MarshalJSON() ([]byte, error) {
+	if !s.Valid {
+		return []byte("null"), nil
+	}
+	return json.Marshal(s.Value)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// Set is always set to true, even if the JSON data was set to null.
+// Valid is set if the JSON data is not set to null.
+func (s *Optional[T]) UnmarshalJSON(data []byte) error {
+	s.Set = true
+	s.Valid = false
+
+	if bytes.Equal(data, []byte("null")) {
+		// The key was set to null, set value to zero/default value
+		var zero T
+		s.Value = zero
+		return nil
+	}
+
+	// The key isn't set to null
+	var v T
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	s.Value = v
+	s.Valid = true
+	return nil
 }

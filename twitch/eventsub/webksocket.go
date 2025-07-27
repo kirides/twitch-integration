@@ -18,7 +18,7 @@ import (
 )
 
 type WebsocketConnection struct {
-	handler       Handler
+	handler       *Handler
 	conn          *websocket.Conn
 	httpClient    *http.Client
 	HTTPHeader    http.Header
@@ -60,7 +60,7 @@ func NewWebsocket(
 	clientID string,
 	logger *slog.Logger,
 	token string,
-	handler Handler,
+	handler *Handler,
 	onSubscribe func(map[string]Condition),
 ) (*WebsocketConnection, error) {
 	conn := &WebsocketConnection{
